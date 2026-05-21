@@ -207,8 +207,8 @@ The POC uses the **same `Request` + `Requirement` machinery** for world setup, m
 | **Spawn / destroy entity** | Admin (`AdminACL`) | `SystemAuthorization` | `create_*` setup `Request`; `entity::destroy_entity` (empty shell) |
 | **Attach core module** | **Entity owner** (`OwnerCap`) | Type on **core allowlist** | `module_attach::attach_core_setup` → `CoreModuleAllowed` |
 | **Attach custom module** | **Entity owner** | **Admin-defined requirement stack** per module inner type | `module_attach::attach_custom_setup` → policy `Requirement`s |
-| **Run exposed action** | Entity owner | Per-action stack from `expose` (+ services, owner, …) | `interact` → `Request` |
-| **Tweak existing actions** | Entity owner | Extra requirements on a named action | `module_owner::add_custom_requirement` |
+| **Run exposed action** | **Anyone** (caller builds the PTB) | Whatever each action registered at `expose` — owner, module slots, services, … | `interact` → `Request` → satisfy LIFO → `complete` |
+| **Tweak existing actions** | Entity owner (`OwnerCap`) | Extra requirements on a named action | `module_owner::add_custom_requirement` |
 
 **Re-alignment from early POC notes:** attach is **not** admin-driven. Admins do **not** install modules on player entities. They configure **world rules**; **owners** run attach PTBs and satisfy setup requirements (same LIFO pattern as gameplay).
 
@@ -284,14 +284,23 @@ Shared object: **`ModuleRegistry`** (created in `module_registry::init`). **`cor
 
 **Tests:** `entity_core_tests` (owner attach, custom policy + `install_item_service`, core allowlist abort); `entity_tests` (integration smoke). All **28** unit tests pass on testnet framework.
 
-### Owner layer — gameplay `interact`
+### Gameplay `interact` — open entry, requirements at `expose`
 
-The holder of that entity’s **`OwnerCap`** satisfies `OwnerAuthorization` on exposed actions (`inventory:deposit`, `metadata:set_name`, …), usually last in the LIFO stack.
+**`entity::interact` does not check ownership.** Any address can start a flow on a shared entity; the action succeeds only if the PTB satisfies every requirement the exposing module registered (LIFO order).
+
+| Layer | Who / what |
+|-------|------------|
+| **Shell** | `interact(name)` copies the action’s requirement list into a `Request`; no global owner gate |
+| **Module `expose`** | Each `module_*` chooses its stack — e.g. `module_owner::requirement()` for owner-only, `requirement::on_module<Deposit>(…)` for module logic, `location_service::requirement(…)` for proximity |
+| **Services** | Published requirement types (`install_item_service`, `location_service`, …) are composed into stacks at `expose` or via policy |
+| **Owner module** | Optional `OwnerAuthorization` — satisfied with `module_owner::verify_ownership(req, entity, cap)` when the action includes that requirement |
+
+**POC convention:** `module_inventory` and `module_metadata` include **`OwnerAuthorization`** on deposit/withdraw/set_name. That is a **per-module choice at `expose`**, not a framework rule. A public action omits `module_owner::requirement()` and only registers service/module requirements.
 
 | When | Gate |
 |------|------|
-| `entity::interact(...)` | Requirements from `expose` (+ owner, services, custom additions) |
-| Extend existing action | `module_owner::add_custom_requirement` — adds a requirement to a named action without re-`expose` |
+| `entity::interact(...)` | Caller anyone; completion gated by the action’s requirement stack |
+| Extend existing action | **Owner only** — `module_owner::add_custom_requirement` (mutates policy on the entity) |
 | Bundle actions | `entity::expose_composite` — merges requirement lists from existing action names |
 
 ### Gameplay flows: customization with and without new modules
