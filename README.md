@@ -210,7 +210,7 @@ The POC uses the **same `Request` + `Requirement` machinery** for world setup, m
 | **Run exposed action** | **Anyone** (caller builds the PTB) | Whatever each action registered at `expose` — owner, module slots, services, … | `interact` → `Request` → satisfy LIFO → `complete` |
 | **Tweak existing actions** | Entity owner (`OwnerCap`) | Extra requirements on a named action | `module_owner::add_custom_requirement` |
 
-**Re-alignment from early POC notes:** attach is **not** admin-driven. Admins do **not** install modules on player entities. They configure **world rules**; **owners** run attach PTBs and satisfy setup requirements (same LIFO pattern as gameplay).
+Admins do **not** install modules on player entities. They configure **world rules**; **owners** run attach PTBs and satisfy setup requirements (same LIFO pattern as gameplay).
 
 ### Two module attach paths
 
