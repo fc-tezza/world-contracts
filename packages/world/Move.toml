@@ -1,0 +1,6 @@
+[package]
+name = "world"
+edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
+
+[dependencies]
+ptb = { git = "https://github.com/MystenLabs/pas", subdir = "packages/ptb", rev = "main" }
