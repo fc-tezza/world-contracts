@@ -1,4 +1,4 @@
-# Entity Accumulator POC
+# Entity POC
 
 Prototype of a universal **Entity** shell with entity-scoped accumulators, attachable modules, and the [world_3](https://github.com/amnn/world-contracts/tree/amnn/world-3/contracts/world_3) **Action → interact → Request → Requirement** interaction model. On-chain **PTB templates** use the [`ptb`](https://github.com/MystenLabs/pas) package.
 
