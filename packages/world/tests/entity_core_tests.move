@@ -10,19 +10,17 @@ use world::{
     entity_test_utils,
     item,
     location_service,
-    module_beacon,
+    module_custom_fixture,
     module_energy,
     module_flags,
     module_inventory,
     module_owner,
     module_registry,
-    module_warp,
     install_item_service,
     module_flags::FlagsModule,
     module_energy::EnergyModule,
-    module_beacon::BeaconModule,
+    module_custom_fixture::CustomFixtureModule,
     module_owner::OwnerModule,
-    module_warp::WarpModule,
     owner_cap,
     request,
 };
@@ -366,28 +364,21 @@ fun owner_can_extend_action_requirements_cross_module() {
 }
 
 #[test]
-fun beacon_and_inventory_composite_interact_stack() {
+fun inventory_deposit_and_withdraw_composite_interact_stack() {
     let mut ctx = tx_context::dummy();
     let (mut e, cap, registry, admin) = entity_test_utils::setup_in_space(&mut ctx);
-
-    entity_test_utils::drop_core_attach_setup<BeaconModule>(
-        module_beacon::attach(&mut e, b"base", &mut ctx),
-        &e,
-        &cap,
-        &registry,
-    );
     entity_test_utils::attach_inventory(&mut e, 2, 100, &cap, &registry, &mut ctx);
 
     entity::expose_composite(
         &mut e,
-        b"ops:ping_and_deposit".to_string(),
-        vector[b"beacon:ping".to_string(), b"inventory:deposit".to_string()],
+        b"ops:deposit_and_withdraw".to_string(),
+        vector[b"inventory:deposit".to_string(), b"inventory:withdraw".to_string()],
         vector[],
     );
 
-    // beacon:ping (proximity) + inventory:deposit (owner + deposit) = 3 requirements
-    let req = entity::interact(&mut e, b"ops:ping_and_deposit".to_string());
-    assert_eq!(req.remaining(), 3);
+    // deposit (2) + withdraw (2) = 4 requirements
+    let req = entity::interact(&mut e, b"ops:deposit_and_withdraw".to_string());
+    assert_eq!(req.remaining(), 4);
     entity::abandon_interact(req, &mut e);
 
     entity::destroy_for_testing(entity_test_utils::drain_modules(e));
@@ -410,13 +401,13 @@ fun admin_destroy_entity_requires_empty_shell() {
 fun owner_attaches_custom_module_via_admin_requirement_stack() {
     let mut ctx = tx_context::dummy();
     let (mut e, cap, registry, admin) = entity_test_utils::setup_in_space(&mut ctx);
-    let drive = item::new(item::warp_drive_type_id(), 1, 0, 0, &mut ctx);
-    let mut req = module_warp::attach(&mut e, 2, &registry, &mut ctx);
+    let demo_item = item::new(item::attach_demo_item_type_id(), 1, 0, 0, &mut ctx);
+    let mut req = module_custom_fixture::attach(&mut e, 1, &registry, &mut ctx);
     assert_eq!(req.remaining(), 2);
-    install_item_service::satisfy_consume_item(&mut req, &e, drive, &mut ctx);
+    install_item_service::satisfy_consume_item(&mut req, &e, demo_item, &mut ctx);
     module_owner::verify_ownership(&mut req, &e, &cap);
     request::complete_ignore(req);
-    assert!(entity::has_module(&e, module_warp::module_name()));
+    assert!(entity::has_module(&e, module_custom_fixture::module_name()));
     entity::destroy_for_testing(entity_test_utils::drain_modules(e));
     owner_cap::destroy_for_testing(cap);
     entity_test_utils::teardown_world(admin, registry);
@@ -427,7 +418,7 @@ fun owner_attaches_custom_module_via_admin_requirement_stack() {
 fun core_attach_aborts_when_module_not_on_allowlist() {
     let mut ctx = tx_context::dummy();
     let (e, cap, registry, admin) = entity_test_utils::setup_in_space(&mut ctx);
-    module_registry::assert_core_module_allowed<WarpModule>(&registry);
+    module_registry::assert_core_module_allowed<CustomFixtureModule>(&registry);
     owner_cap::destroy_for_testing(cap);
     entity::destroy_for_testing(e);
     entity_test_utils::teardown_world(admin, registry);

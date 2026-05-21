@@ -8,14 +8,12 @@ use world::{
     entity_accumulator,
     entity_test_utils,
     item,
-    module_beacon,
     module_energy,
     module_flags,
     module_inventory,
     module_metadata,
     module_owner,
     module_registry,
-    module_beacon::BeaconModule,
     module_energy::EnergyModule,
     module_flags::FlagsModule,
     module_inventory::InventoryModule,
@@ -92,29 +90,6 @@ fun deposit_aborts_when_volume_exceeded() {
 }
 
 #[test]
-fun publicly_gated_beacon_has_no_owner_req() {
-    let mut ctx = tx_context::dummy();
-    let (admin, registry) = entity_test_utils::setup_test_world(&mut ctx);
-    let (mut e, _cap, setup) = entity::create_in_space(&mut ctx);
-    finish_create(setup, &e, &admin, &ctx);
-
-    finish_core_attach<BeaconModule>(
-        module_beacon::attach(&mut e, b"sector-7", &mut ctx),
-        &e,
-        &_cap,
-        &registry,
-    );
-
-    let mut ping_req = entity::interact(&mut e, b"beacon:ping".to_string());
-    module_beacon::ping(&mut ping_req, &e);
-    assert_eq!(ping_req.remaining(), 1);
-    request::complete_ignore(ping_req);
-    entity::destroy_for_testing(drain_modules(e));
-    owner_cap::destroy_for_testing(_cap);
-    entity_test_utils::teardown_world(admin, registry);
-}
-
-#[test]
 fun character_metadata_owner_gated() {
     let mut ctx = tx_context::dummy();
     let (admin, registry) = entity_test_utils::setup_test_world(&mut ctx);
@@ -144,12 +119,6 @@ fun composite_action_merges_requirements() {
     let mut ctx = tx_context::dummy();
     let (mut e, cap, registry, admin) = entity_test_utils::setup_in_space(&mut ctx);
 
-    finish_core_attach<BeaconModule>(
-        module_beacon::attach(&mut e, b"base", &mut ctx),
-        &e,
-        &cap,
-        &registry,
-    );
     finish_core_attach<InventoryModule>(
         module_inventory::attach(&mut e, 4, 1000, &mut ctx),
         &e,
@@ -159,13 +128,13 @@ fun composite_action_merges_requirements() {
 
     entity::expose_composite(
         &mut e,
-        b"ops:deposit_at_beacon".to_string(),
-        vector[b"inventory:deposit".to_string(), b"beacon:ping".to_string()],
+        b"ops:deposit_and_withdraw".to_string(),
+        vector[b"inventory:deposit".to_string(), b"inventory:withdraw".to_string()],
         vector[],
     );
 
-    let req = entity::interact(&mut e, b"ops:deposit_at_beacon".to_string());
-    assert_eq!(req.remaining(), 3);
+    let req = entity::interact(&mut e, b"ops:deposit_and_withdraw".to_string());
+    assert_eq!(req.remaining(), 4);
     request::complete_ignore(req);
     entity::destroy_for_testing(drain_modules(e));
     owner_cap::destroy_for_testing(cap);

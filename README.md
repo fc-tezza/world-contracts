@@ -33,7 +33,7 @@ Entity (shared object)
 | Layer | Where | What lives here |
 |-------|--------|------------------|
 | **Accumulators** | `entity.id` (UID dynamic fields) | Aggregates: mass, energy, **used** inventory volume, connection flag bits. One cell per marker **type** per entity—not per module instance. |
-| **Module inner** | `Module<M>.inner` in the **Bag** | Module-specific authoritative state (e.g. `InventoryModule.items` with per-stack `quantity`, capacity config, beacon hash, tribe id, …). |
+| **Module inner** | `Module<M>.inner` in the **Bag** | Module-specific authoritative state (e.g. `InventoryModule.items` with per-stack `quantity`, capacity config, tribe id, …). |
 | **Module wrapper** | `Module<M>` fields `entity`, `name` | Wiring for satisfy checks and MVR (`world:module`); not gameplay totals. |
 | **Actions** | `entity.actions` | Which named flows exist and which requirements they need. |
 
@@ -53,7 +53,7 @@ public struct Module<M> has store {
 |------|----------|----------|
 | **`entity`** | `module_` (set at `install`) | Do not extend. Proves this `Module` belongs to that entity when satisfying `on_module` requirements. |
 | **`name`** | `module_` (Bag key / instance id) | Do not duplicate in `inner` unless you need it inside handlers that only see `&Module<M>` without the key string. Prefer `module_::instance_name` at boundaries. |
-| **`inner`** | Each `module_*` package | **All instance-local gameplay state** for that module type: item vectors, per-instance caps, beacon hash, tribe id, display name, etc. |
+| **`inner`** | Each `module_*` package | **All instance-local gameplay state** for that module type: item vectors, per-instance caps, tribe id, display name, etc. |
 
 The wrapper is **not** a second gameplay layer—it is the MVR/install envelope around **`inner`**. Accumulators are **not** stored on `Module<M>`; they stay on `entity.id` (UID).
 
@@ -72,7 +72,7 @@ Use this decision order when adding fields or markers:
 
 3. **`Module<M>.inner`** — Use when the value is:
    - **Authoritative detail** for one instance (item list, slot count, `max_volume` for *this* inventory).
-   - **Only consulted by that module’s logic** (metadata display name, beacon `location_hash` for expose).
+   - **Only consulted by that module’s logic** (metadata display name, inventory caps, etc.).
    - **Per-instance limits** that other code should read via `borrow_module` / `max_volume_instance`, not by scanning the Bag.
 
 4. **Neither (separate objects)** — Items, caps, NFTs, etc. stay as their own types; modules hold references or vectors in `inner`, not on the wrapper.
@@ -90,7 +90,6 @@ Use this decision order when adding fields or markers:
 | `InventoryModule` | `items`, `max_slots`, `max_volume` | `Mass`, `InventoryVolume` (used volume) | Deposit updates vector + merges mass/volume on UID. Limit (`max_volume`) in inner; used total on UID for cross-checks. |
 | `EnergyModule` | `max_capacity` only | `Energy` (current stored energy) | Discharge reads/writes **accumulator**; inner holds cap config, not the live pool (could be filled by other systems later). |
 | `FlagsModule` | `{}` (empty) | `Flags` bitmask | Module exists to run attach hooks; **all** connection state on UID via `mark_connected`. |
-| `BeaconModule` | `location_hash` | — | Hash copied into `location_service` requirement at `expose`; no entity-wide roll-up. |
 | `MetadataModule` | `display_name`, `tags` | — | Purely local; other modules do not aggregate this. |
 | `TribeModule` | `tribe_id` | — | Affiliation per instance; entity-wide tribe rules would use accumulators or services later. |
 | `OwnerModule` / `AdminModule` | `{}` or minimal | — | Capability / ACL modules; state lives in caps and access packages, not accumulators. |
@@ -238,30 +237,30 @@ request::finish(req);
 
 **2. Custom / third-party modules (admin requirement stack + owner)**
 
-Customization modules (e.g. `module_warp`) use **`attach_custom_setup`**: the setup `Request` is **`OwnerAuthorization`** plus whatever **`Requirement`s** the admin stored for that inner type. No separate item-only registry—item gating is just one optional requirement type.
+Third-party modules use **`attach_custom_setup`**: the setup `Request` is **`OwnerAuthorization`** plus whatever **`Requirement`s** the admin stored for that inner type. No separate item-only registry—item gating is just one optional requirement type.
 
 ```text
 # Deploy: admin defines attach policy (any combination of services)
-module_registry::set_custom_attach_policy<WarpModule>(
+module_registry::set_custom_attach_policy<MyCustomModule>(
     registry,
     admin_acl,
     vector[
-        install_item_service::requirement(item::warp_drive_type_id()),
+        install_item_service::requirement(item::attach_demo_item_type_id()),
         // location_service::requirement(b"shipyard"),
     ],
     ctx,
 );
 
-# Gameplay: owner attaches warp mod (satisfy policy reqs LIFO, then owner)
-let req = module_warp::attach(&mut entity, boost, &registry, ctx);
-install_item_service::satisfy_consume_item(&mut req, &entity, warp_drive_item, ctx);
+# Gameplay: owner attaches custom mod (satisfy policy reqs LIFO, then owner)
+let req = my_package::attach(&mut entity, &registry, ctx);
+install_item_service::satisfy_consume_item(&mut req, &entity, install_item, ctx);
 module_owner::verify_ownership(&mut req, &entity, &owner_cap);
 request::finish(req);
 ```
 
 Admins can stack **any published requirement** on custom attach: `install_item_service` (consume item), `location_service` (proximity), future cap/tribe markers, etc. Clients discover satisfy steps via the same `announce_service` / PTB template path as gameplay.
 
-**Example without items:** policy `vector[location_service::requirement(b"shipyard")]` — owner must satisfy proximity to attach; no warp-drive item type required.
+**POC tests** use `module_custom_fixture` (attach-only stub, no gameplay actions). **Example without items:** policy `vector[location_service::requirement(b"shipyard")]` — owner must satisfy proximity to attach.
 
 ### Admin APIs (`ModuleRegistry`)
 
@@ -299,14 +298,14 @@ The holder of that entity’s **`OwnerCap`** satisfies `OwnerAuthorization` on e
 
 **A. Custom requirements on existing modules (in POC)**
 
-Owner already attaches core modules (inventory, owner, beacon, …). Without installing a new package, the owner can tighten or compose flows:
+Owner already attaches core modules (inventory, owner, …). Without installing a new package, the owner can tighten or compose flows:
 
 ```text
 module_owner::add_custom_requirement(&mut entity, &cap, b"inventory:deposit", location_req);
 entity::interact(entity, b"inventory:deposit")  → 3 requirements (deposit + owner + location)
 ```
 
-Or define a composite interact name that merges beacon + inventory stacks (`expose_composite` — tested).
+Or define a composite interact name that merges multiple action stacks (`expose_composite` — tested with inventory deposit + withdraw).
 
 **B. Custom module + new actions**
 
@@ -350,7 +349,7 @@ flowchart TB
 ```
 packages/world/sources/
   core/         entity, module_, request, action, requirement, entity_accumulator, character
-  modules/      inventory, owner, metadata, energy, flags, beacon, warp (custom attach example), …
+  modules/      inventory, owner, metadata, energy, flags, custom_fixture (attach-policy tests), …
   services/     system_service, location_service, install_item_service, module_attach, discovery
   access/       owner_cap, admin_acl, system_auth, module_registry, core_module_auth
   objects/      item (stackable inventory objects)
@@ -618,7 +617,7 @@ These are **not** on-chain objects. Off-chain resolvers in `app/src/lib/ext-reso
 | `module_metadata` | Display name, gated `metadata:set_name` |
 | `module_energy` | Capacity + discharge action |
 | `module_flags` | `install` / `expose` (no actions); connection bits on UID via `mark_connected` |
-| `module_beacon` | Public `beacon:ping` (location requirement only; see module comment) |
+| `module_custom_fixture` | Attach-policy test stub only (no gameplay actions) |
 | `module_tribe` | `install` / `expose` (stub gate); future affiliation actions |
 | `module_admin` | `install` / `expose` (stub gate); future admin actions |
 | `character` | Thin helpers on `Entity` (item borrow/return); not a separate shell |

@@ -1,8 +1,8 @@
 /// Owned stackable item object (passed into inventory PTBs, stored in `InventoryModule`).
 module world::item;
 
-/// Demo item type for `install_item_service` + `module_warp` attach policy tests.
-public fun warp_drive_type_id(): u64 {
+/// Demo item type for `install_item_service` custom-attach policy tests.
+public fun attach_demo_item_type_id(): u64 {
     9001
 }
 

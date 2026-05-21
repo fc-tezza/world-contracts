@@ -1,44 +1,39 @@
-/// Example customization module — attach requirements come from `ModuleRegistry` policy.
-module world::module_warp;
+/// Minimal third-party-shaped module for custom-attach policy tests (no gameplay actions).
+module world::module_custom_fixture;
 
 use std::string::String;
 use world::{
     entity,
-    item,
     module_,
     module_attach,
     module_registry::ModuleRegistry,
     request,
 };
 
-public struct WarpModule has store {
-    boost: u64,
+public struct CustomFixtureModule has store {
+    tag: u64,
 }
 
 const ACTION_VERSION: u64 = 1;
 
 #[error(code = 0)]
-const EUnsupportedActionVersion: vector<u8> = b"Unsupported warp action version";
+const EUnsupportedActionVersion: vector<u8> = b"Unsupported custom fixture action version";
 #[error(code = 1)]
-const EModuleNotInstalled: vector<u8> = b"Warp module instance not installed";
-
-public fun warp_drive_type_id(): u64 {
-    item::warp_drive_type_id()
-}
+const EModuleNotInstalled: vector<u8> = b"Custom fixture module instance not installed";
 
 public fun module_name(): String {
-    b"warp".to_string()
+    b"custom_fixture".to_string()
 }
 
 public fun install(
     entity: &mut entity::Entity,
     instance: String,
-    boost: u64,
+    tag: u64,
     registry: &ModuleRegistry,
     _ctx: &mut TxContext,
 ): request::Request {
-    entity::install(entity, instance, WarpModule { boost }, _ctx);
-    module_attach::attach_custom_setup<WarpModule>(entity, registry)
+    entity::install(entity, instance, CustomFixtureModule { tag }, _ctx);
+    module_attach::attach_custom_setup<CustomFixtureModule>(entity, registry)
 }
 
 public fun expose(entity: &mut entity::Entity, instance: String, version: u64) {
@@ -48,18 +43,18 @@ public fun expose(entity: &mut entity::Entity, instance: String, version: u64) {
 
 public fun attach(
     entity: &mut entity::Entity,
-    boost: u64,
+    tag: u64,
     registry: &ModuleRegistry,
     ctx: &mut TxContext,
 ): request::Request {
     let instance = module_name();
-    let req = install(entity, instance, boost, registry, ctx);
+    let req = install(entity, instance, tag, registry, ctx);
     expose(entity, instance, ACTION_VERSION);
     req
 }
 
 #[test_only]
 public fun destroy_installed(entity: &mut entity::Entity, name: String) {
-    let WarpModule { boost: _ } =
+    let CustomFixtureModule { tag: _ } =
         module_::take_inner(entity::remove_module_for_testing(entity, name));
 }

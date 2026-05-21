@@ -20,7 +20,7 @@ Tests are split by intent:
 Cancelled / stuck interacts use `entity::abandon_interact` (test-only), which drops the `Request` and clears `InFlight` — closer to abandoning a failed PTB than `request::complete_ignore`.
 | **Composite actions** | `expose_composite_unions_base_action_requirements` |
 | **Accumulators** | `inventory_deposit_updates_entity_accumulators`, `withdraw_splits_entity_accumulators` |
-| **Cross-module** | `flags_and_energy_attach_marks_connection_bit`, `owner_can_extend_action_requirements_cross_module`, `beacon_and_inventory_composite_interact_stack` |
+| **Cross-module** | `flags_and_energy_attach_marks_connection_bit`, `owner_can_extend_action_requirements_cross_module`, `inventory_deposit_and_withdraw_composite_interact_stack` |
 
 ## Gaps (intentionally light or deferred)
 

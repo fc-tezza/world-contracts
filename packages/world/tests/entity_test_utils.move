@@ -9,8 +9,8 @@ use world::{
     item,
     module_admin,
     module_admin::AdminModule,
-    module_beacon,
-    module_beacon::BeaconModule,
+    module_custom_fixture,
+    module_custom_fixture::CustomFixtureModule,
     module_energy,
     module_energy::EnergyModule,
     module_flags,
@@ -23,7 +23,6 @@ use world::{
     module_owner::OwnerModule,
     module_tribe::TribeModule,
     module_registry::{Self, ModuleRegistry},
-    module_warp,
     module_attach,
     install_item_service,
     owner_cap::{Self, OwnerCap},
@@ -37,11 +36,10 @@ public fun drain_modules(mut e: entity::Entity): entity::Entity {
         module_inventory::module_name(),
         module_owner::module_name(),
         module_metadata::module_name(),
-        module_beacon::module_name(),
         module_energy::module_name(),
         module_flags::module_name(),
         module_admin::module_name(),
-        module_warp::module_name(),
+        module_custom_fixture::module_name(),
     ];
     let mut i = 0;
     while (i < names.length()) {
@@ -53,16 +51,14 @@ public fun drain_modules(mut e: entity::Entity): entity::Entity {
                 module_owner::destroy_installed(&mut e, n);
             } else if (n == module_metadata::module_name()) {
                 module_metadata::destroy_installed(&mut e, n);
-            } else if (n == module_beacon::module_name()) {
-                module_beacon::destroy_installed(&mut e, n);
             } else if (n == module_energy::module_name()) {
                 module_energy::destroy_installed(&mut e, n);
             } else if (n == module_flags::module_name()) {
                 module_flags::destroy_installed(&mut e, n);
             } else if (n == module_admin::module_name()) {
                 module_admin::destroy_installed(&mut e, n);
-            } else if (n == module_warp::module_name()) {
-                module_warp::destroy_installed(&mut e, n);
+            } else if (n == module_custom_fixture::module_name()) {
+                module_custom_fixture::destroy_installed(&mut e, n);
             };
         };
         i = i + 1;
@@ -93,7 +89,6 @@ public fun drop_core_attach_setup<M: store>(
 fun register_core_modules_for_testing(registry: &mut ModuleRegistry) {
     module_registry::add_core_module_for_testing<InventoryModule>(registry);
     module_registry::add_core_module_for_testing<EnergyModule>(registry);
-    module_registry::add_core_module_for_testing<BeaconModule>(registry);
     module_registry::add_core_module_for_testing<MetadataModule>(registry);
     module_registry::add_core_module_for_testing<FlagsModule>(registry);
     module_registry::add_core_module_for_testing<OwnerModule>(registry);
@@ -105,9 +100,9 @@ public fun setup_test_world(ctx: &mut TxContext): (AdminACL, ModuleRegistry) {
     let admin = admin_acl::init_for_testing(ctx);
     let mut registry = module_registry::init_for_testing(ctx);
     register_core_modules_for_testing(&mut registry);
-    module_registry::set_custom_attach_policy_for_testing<module_warp::WarpModule>(
+    module_registry::set_custom_attach_policy_for_testing<CustomFixtureModule>(
         &mut registry,
-        vector[install_item_service::requirement(item::warp_drive_type_id())],
+        vector[install_item_service::requirement(item::attach_demo_item_type_id())],
     );
     (admin, registry)
 }
